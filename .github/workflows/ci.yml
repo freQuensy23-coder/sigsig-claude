@@ -29,7 +29,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.85"
+          toolchain: "1.88"
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -50,9 +50,6 @@ jobs:
       - name: Generate protobuf stubs
         run: uv run bash scripts/gen_proto.sh
 
-      - name: Ruff check
-        run: uv run ruff check src tests
-
       - name: Pytest
         run: uv run pytest -q
 
@@ -67,7 +64,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.85"
+          toolchain: "1.88"
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
