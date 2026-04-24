@@ -23,6 +23,8 @@ from typing import Any
 from sigsig_libsignal._libsignal import SignalStore  # type: ignore[import-not-found]
 
 from sigsig._proto import SignalService_pb2 as svc_pb
+from sigsig.attachments import Attachment
+from sigsig.attachments_api import upload_attachment
 from sigsig.errors import ProtocolError
 from sigsig.groups import Group
 from sigsig.transport.http import HttpClient
@@ -52,8 +54,13 @@ def _pad(body: bytes) -> bytes:
     return body + b"\x80" + b"\x00" * (blocks * _PADDING_BLOCK_SIZE - length - 1)
 
 
-def _build_text_content(
-    *, text: str, expire_timer_s: int, group: Group | None
+async def _build_text_content(
+    *,
+    text: str,
+    expire_timer_s: int,
+    group: Group | None,
+    attachments: list[Attachment],
+    http: HttpClient,
 ) -> tuple[bytes, int]:
     now_ms = int(time.time() * 1000)
     dm = svc_pb.DataMessage()
@@ -64,6 +71,9 @@ def _build_text_content(
     if group is not None:
         dm.groupV2.masterKey = group.master_key
         dm.groupV2.revision = group.revision
+    for att in attachments:
+        pointer = await upload_attachment(http=http, attachment=att)
+        dm.attachments.append(pointer)
     content = svc_pb.Content()
     content.dataMessage.CopyFrom(dm)
     return _pad(content.SerializeToString()), now_ms
@@ -78,9 +88,14 @@ async def send_text_message(
     expire_timer_s: int = 0,
     our_aci: str | None = None,
     our_device_id: int | None = None,
+    attachments: list[Attachment] | None = None,
 ) -> SendResult:
-    plaintext, now_ms = _build_text_content(
-        text=text, expire_timer_s=expire_timer_s, group=None
+    plaintext, now_ms = await _build_text_content(
+        text=text,
+        expire_timer_s=expire_timer_s,
+        group=None,
+        attachments=attachments or [],
+        http=http,
     )
     await _deliver_to_one(
         http=http,
@@ -103,9 +118,14 @@ async def send_group_text_message(
     expire_timer_s: int = 0,
     our_aci: str | None = None,
     our_device_id: int | None = None,
+    attachments: list[Attachment] | None = None,
 ) -> SendResult:
-    plaintext, now_ms = _build_text_content(
-        text=text, expire_timer_s=expire_timer_s, group=group
+    plaintext, now_ms = await _build_text_content(
+        text=text,
+        expire_timer_s=expire_timer_s,
+        group=group,
+        attachments=attachments or [],
+        http=http,
     )
     for member in group.members:
         if our_aci and member.service_id_string == our_aci:

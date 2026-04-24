@@ -20,6 +20,7 @@ import logging
 from sigsig_libsignal._libsignal import SignalStore  # type: ignore[import-not-found]
 
 from sigsig._proto import SignalService_pb2 as svc_pb
+from sigsig.attachments_api import inbound_from_pointer
 from sigsig.config import UNIDENTIFIED_SENDER_TRUST_ROOT, UNIDENTIFIED_SENDER_TRUST_ROOT2
 from sigsig.events import (
     DecryptionError,
@@ -238,6 +239,7 @@ def _events_from_content(
 
     if content.HasField("dataMessage"):
         dm = content.dataMessage
+        attachments = tuple(inbound_from_pointer(a) for a in dm.attachments)
         if dm.HasField("groupV2"):
             events.append(
                 GroupTextMessage(
@@ -249,6 +251,7 @@ def _events_from_content(
                     server_timestamp_ms=envelope.serverTimestamp,
                     text=dm.body or "",
                     expires_in_seconds=dm.expireTimer or 0,
+                    attachments=attachments,
                 )
             )
         else:
@@ -261,6 +264,7 @@ def _events_from_content(
                     text=dm.body or "",
                     expires_in_seconds=dm.expireTimer or 0,
                     is_view_once=bool(dm.isViewOnce),
+                    attachments=attachments,
                 )
             )
     if content.HasField("receiptMessage"):

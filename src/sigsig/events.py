@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from sigsig.attachments import InboundAttachment
 from sigsig.types import DeviceId, ServiceId
 
 
@@ -28,6 +29,7 @@ class TextMessage(Event):
     text: str
     expires_in_seconds: int = 0
     is_view_once: bool = False
+    attachments: tuple[InboundAttachment, ...] = ()
 
 
 @dataclass(slots=True, frozen=True)
@@ -47,6 +49,7 @@ class GroupTextMessage(Event):
     server_timestamp_ms: int
     text: str
     expires_in_seconds: int = 0
+    attachments: tuple[InboundAttachment, ...] = ()
 
 
 @dataclass(slots=True, frozen=True)

@@ -102,6 +102,28 @@ await client.send_message(group, text="hello group")
 
 sigsig fans the same encrypted `DataMessage` (with `groupV2 = {masterKey, revision}`) out to every member's ACI.
 
+## Attachments (images, files)
+
+```python
+from pathlib import Path
+from sigsig import Attachment
+
+await client.send_message(
+    recipient,
+    text="here's the photo",
+    attachments=[Attachment.from_file("~/Pictures/cat.jpg")],
+)
+
+# On receive:
+@client.on(events.TextMessage)
+async def on_text(msg):
+    for att in msg.attachments:
+        data = await att.download()   # downloads from CDN, verifies, decrypts
+        (Path("./inbox") / (att.file_name or "attachment")).write_bytes(data)
+```
+
+Attachments are AES-256-CBC + HMAC-SHA256 encrypted client-side, uploaded to Signal's CDN3 (TUS resumable-upload), and referenced from the `DataMessage` via an `AttachmentPointer`. Recipients fetch the encrypted blob, verify the SHA-256 digest + HMAC, then decrypt.
+
 ### Where does `master_key` come from?
 
 Signal doesn't expose the master_key in the app UI. You get it one of these ways:
@@ -184,6 +206,7 @@ See [`src/sigsig/errors.py`](src/sigsig/errors.py).
 ✅ 1:1 text message send + receive (sealed sender on inbound)
 ✅ Groups V2 text message send + receive
 ✅ Group member list fetch via zkgroup (`client.fetch_group_members`)
+✅ Attachments (images, files) — CDN3 upload + download + decrypt
 ✅ Delivery / read / viewed receipts, typing indicators
 ✅ QR linked-device provisioning
 ✅ Session persistence (JSON + libsignal opaque blob)
@@ -198,7 +221,6 @@ See [`src/sigsig/errors.py`](src/sigsig/errors.py).
 - **Group admin operations** — creating / renaming / adding members / removing members / re-keying.
 - **SenderKey multi-recipient fanout** — group sends use per-member individual encryption (the slower legacy path).
 - **Self-sync on send** — sent messages don't appear in your own phone's chat UI (we skip the `SyncMessage.Sent` to our primary).
-- **Attachments** — no CDN2/CDN3 upload/download.
 - **Stories, calls, payments, usernames, safety numbers**.
 
 See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for which libsignal primitive each gap maps to.
