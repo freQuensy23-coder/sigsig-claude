@@ -208,6 +208,13 @@ def listen(
                 except sigsig.SigsigError as exc:
                     console.print(f"[red]failed to reply:[/red] {exc}")
 
+        @client.on(sigsig.events.GroupTextMessage)
+        async def on_group(msg: sigsig.events.GroupTextMessage) -> None:
+            console.print(
+                f"[magenta]group {msg.group_master_key.hex()}[/magenta] "
+                f"[cyan]{msg.sender}[/cyan]/{msg.sender_device}: {msg.text}"
+            )
+
         @client.on(sigsig.events.Receipt)
         async def on_receipt(r: sigsig.events.Receipt) -> None:
             console.print(
