@@ -27,11 +27,6 @@ use libsignal_protocol::{
     SenderKeyRecord, SenderKeyStore, SessionRecord, SessionStore, SignalMessage,
     SignalProtocolError, SignedPreKeyId, SignedPreKeyRecord, SignedPreKeyStore, Timestamp,
 };
-use zkgroup::{
-    auth::{AuthCredentialWithPni, AuthCredentialWithPniResponse},
-    groups::{GroupMasterKey, GroupSecretParams, UuidCiphertext},
-    ServerPublicParams, Timestamp as ZkTimestamp,
-};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -39,6 +34,11 @@ use rand::rngs::OsRng;
 use rand::TryRngCore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use zkgroup::{
+    auth::{AuthCredentialWithPni, AuthCredentialWithPniResponse},
+    groups::{GroupMasterKey, GroupSecretParams, UuidCiphertext},
+    ServerPublicParams, Timestamp as ZkTimestamp,
+};
 
 // ---------------------------------------------------------------------------
 // Sub-stores. Each owns one HashMap so they can be independently borrowed.
@@ -848,14 +848,20 @@ fn zkgroup_group_public_params<'py>(
     secret_params: &[u8],
 ) -> PyResult<Bound<'py, PyBytes>> {
     let gsp: GroupSecretParams = zkgroup::deserialize(secret_params).map_err(err)?;
-    Ok(PyBytes::new_bound(py, &zkgroup::serialize(&gsp.get_public_params())))
+    Ok(PyBytes::new_bound(
+        py,
+        &zkgroup::serialize(&gsp.get_public_params()),
+    ))
 }
 
 /// The 16-byte group identifier.
 #[pyfunction]
 fn zkgroup_group_id<'py>(py: Python<'py>, secret_params: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
     let gsp: GroupSecretParams = zkgroup::deserialize(secret_params).map_err(err)?;
-    Ok(PyBytes::new_bound(py, &gsp.get_public_params().get_group_identifier()))
+    Ok(PyBytes::new_bound(
+        py,
+        &gsp.get_public_params().get_group_identifier(),
+    ))
 }
 
 /// Turn a server-issued ``AuthCredentialWithPniResponse`` into a usable
