@@ -74,6 +74,18 @@ Recipient accepts:
 
 ## Sending to a group
 
+If you know the group's `master_key` (32 bytes) you can fetch the member list from the server via zkgroup:
+
+```python
+master_key = bytes.fromhex("bc54159b…")         # from a received GroupTextMessage
+group = await client.fetch_group_members(master_key)
+await client.send_message(group, text="hello group")
+```
+
+`fetch_group_members` talks to `/v2/groups/` on storage.signal.org with a zkgroup AuthCredentialPresentation — same path the official clients use. Requires the current account to be a member.
+
+Or construct the group manually if you already know the members:
+
 ```python
 from sigsig import Group, ServiceId
 
@@ -88,7 +100,15 @@ group = Group(
 await client.send_message(group, text="hello group")
 ```
 
-sigsig fans the same encrypted `DataMessage` (with `groupV2 = {masterKey, revision}`) out to every member's ACI. See limitations below for what's out of scope (auto-membership, invite links).
+sigsig fans the same encrypted `DataMessage` (with `groupV2 = {masterKey, revision}`) out to every member's ACI.
+
+### Where does `master_key` come from?
+
+Signal doesn't expose the master_key in the app UI. You get it one of these ways:
+
+- **From any received `GroupTextMessage`** — `msg.group_master_key` is the 32-byte master key. Send one test message in the group from your phone and capture it from the listener.
+- **From the group's invite link** (`https://signal.group/#…`) — the link encodes `master_key || invite_password` (not yet supported in sigsig).
+- **From Signal-Desktop's SQLite DB** — if you have access to the primary's SQLite, groups are in the `groups` table.
 
 ## Receiving messages — event handlers
 
@@ -162,7 +182,8 @@ See [`src/sigsig/errors.py`](src/sigsig/errors.py).
 ## What's supported
 
 ✅ 1:1 text message send + receive (sealed sender on inbound)
-✅ Groups V2 text message send + receive (minimal — see limitations)
+✅ Groups V2 text message send + receive
+✅ Group member list fetch via zkgroup (`client.fetch_group_members`)
 ✅ Delivery / read / viewed receipts, typing indicators
 ✅ QR linked-device provisioning
 ✅ Session persistence (JSON + libsignal opaque blob)
@@ -172,8 +193,10 @@ See [`src/sigsig/errors.py`](src/sigsig/errors.py).
 ## What's NOT supported (yet)
 
 - **Phone-number recipients** — no CDSI client, so no `+e164 → ACI` lookup. Use `aci:<uuid>` directly.
-- **Group auto-discovery** — you provide the `master_key` + member ACIs yourself. No zkgroup auth, no Storage Service group records, no invite links, no admin changes.
-- **SenderKey fanout** — group sends use per-member individual encryption (the slower legacy path). Signal's SenderKey multi-recipient optimisation isn't wired up.
+- **Group list** — you still need the `master_key` to fetch a group; we don't enumerate "groups the user is in" (needs Storage Service + contacts sync).
+- **Group invite links** — parsing `https://signal.group/#…` URLs and joining isn't implemented.
+- **Group admin operations** — creating / renaming / adding members / removing members / re-keying.
+- **SenderKey multi-recipient fanout** — group sends use per-member individual encryption (the slower legacy path).
 - **Self-sync on send** — sent messages don't appear in your own phone's chat UI (we skip the `SyncMessage.Sent` to our primary).
 - **Attachments** — no CDN2/CDN3 upload/download.
 - **Stories, calls, payments, usernames, safety numbers**.
