@@ -17,7 +17,7 @@ use std::time::SystemTime;
 
 use async_trait::async_trait;
 use futures::executor::block_on;
-use libsignal_core::{DeviceId, ProtocolAddress};
+use libsignal_core::{Aci, DeviceId, Pni, ProtocolAddress};
 use libsignal_protocol::{
     kem, message_decrypt_prekey, message_decrypt_signal, message_encrypt, process_prekey_bundle,
     sealed_sender_decrypt, CiphertextMessage, CiphertextMessageType, Direction,
@@ -26,6 +26,11 @@ use libsignal_protocol::{
     PreKeyId, PreKeyRecord, PreKeySignalMessage, PreKeyStore, PrivateKey, PublicKey,
     SenderKeyRecord, SenderKeyStore, SessionRecord, SessionStore, SignalMessage,
     SignalProtocolError, SignedPreKeyId, SignedPreKeyRecord, SignedPreKeyStore, Timestamp,
+};
+use zkgroup::{
+    auth::{AuthCredentialWithPni, AuthCredentialWithPniResponse},
+    groups::{GroupMasterKey, GroupSecretParams, UuidCiphertext},
+    ServerPublicParams, Timestamp as ZkTimestamp,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -810,11 +815,112 @@ fn identity_key_pair_from_raw<'py>(
     Ok(PyBytes::new_bound(py, &kp.serialize()))
 }
 
+// ---------------------------------------------------------------------------
+// zkgroup — thin wrappers used by Groups V2 state fetch.
+// ---------------------------------------------------------------------------
+
+fn uuid_bytes(raw: &[u8]) -> PyResult<[u8; 16]> {
+    raw.try_into()
+        .map_err(|_| PyValueError::new_err("uuid must be 16 bytes"))
+}
+
+fn array_32(raw: &[u8]) -> PyResult<[u8; 32]> {
+    raw.try_into()
+        .map_err(|_| PyValueError::new_err("expected 32 bytes"))
+}
+
+/// Derive the 32×N-byte ``GroupSecretParams`` blob from a 32-byte master key.
+#[pyfunction]
+fn zkgroup_group_secret_params<'py>(
+    py: Python<'py>,
+    master_key: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let mk = GroupMasterKey::new(array_32(master_key)?);
+    let gsp = GroupSecretParams::derive_from_master_key(mk);
+    Ok(PyBytes::new_bound(py, &zkgroup::serialize(&gsp)))
+}
+
+/// Serialized ``GroupPublicParams`` — used as the Basic-auth username (hex)
+/// in requests to ``/v2/groups/…``.
+#[pyfunction]
+fn zkgroup_group_public_params<'py>(
+    py: Python<'py>,
+    secret_params: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let gsp: GroupSecretParams = zkgroup::deserialize(secret_params).map_err(err)?;
+    Ok(PyBytes::new_bound(py, &zkgroup::serialize(&gsp.get_public_params())))
+}
+
+/// The 16-byte group identifier.
+#[pyfunction]
+fn zkgroup_group_id<'py>(py: Python<'py>, secret_params: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
+    let gsp: GroupSecretParams = zkgroup::deserialize(secret_params).map_err(err)?;
+    Ok(PyBytes::new_bound(py, &gsp.get_public_params().get_group_identifier()))
+}
+
+/// Turn a server-issued ``AuthCredentialWithPniResponse`` into a usable
+/// ``AuthCredentialWithPni`` by verifying it against ``server_public_params``
+/// and binding it to our ACI/PNI + redemption day.
+#[pyfunction]
+fn zkgroup_receive_auth_credential<'py>(
+    py: Python<'py>,
+    server_public_params: &[u8],
+    credential_response: &[u8],
+    aci_uuid_bytes: &[u8],
+    pni_uuid_bytes: &[u8],
+    redemption_time_seconds: u64,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let spp: ServerPublicParams = zkgroup::deserialize(server_public_params).map_err(err)?;
+    let response = AuthCredentialWithPniResponse::new(credential_response).map_err(err)?;
+    let aci = Aci::from_uuid_bytes(uuid_bytes(aci_uuid_bytes)?);
+    let pni = Pni::from_uuid_bytes(uuid_bytes(pni_uuid_bytes)?);
+    let redemption = ZkTimestamp::from_epoch_seconds(redemption_time_seconds);
+    let credential = response.receive(&spp, aci, pni, redemption).map_err(err)?;
+    Ok(PyBytes::new_bound(py, &zkgroup::serialize(&credential)))
+}
+
+/// Build a zero-knowledge ``AuthCredentialPresentation`` to authenticate the
+/// holder to ``/v2/groups/…`` as "some member of this group".
+#[pyfunction]
+fn zkgroup_auth_presentation<'py>(
+    py: Python<'py>,
+    server_public_params: &[u8],
+    group_secret_params: &[u8],
+    auth_credential: &[u8],
+    randomness: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let spp: ServerPublicParams = zkgroup::deserialize(server_public_params).map_err(err)?;
+    let gsp: GroupSecretParams = zkgroup::deserialize(group_secret_params).map_err(err)?;
+    let credential = AuthCredentialWithPni::new(auth_credential).map_err(err)?;
+    let rng: [u8; 32] = array_32(randomness)?;
+    let presentation = credential.present(&spp, &gsp, rng);
+    Ok(PyBytes::new_bound(py, &zkgroup::serialize(&presentation)))
+}
+
+/// Decrypt a ``UuidCiphertext`` (wire form from a decrypted Group) into an
+/// ACI UUID string.
+#[pyfunction]
+fn zkgroup_decrypt_uuid_ciphertext(
+    group_secret_params: &[u8],
+    ciphertext: &[u8],
+) -> PyResult<String> {
+    let gsp: GroupSecretParams = zkgroup::deserialize(group_secret_params).map_err(err)?;
+    let ct: UuidCiphertext = zkgroup::deserialize(ciphertext).map_err(err)?;
+    let sid = gsp.decrypt_service_id(ct).map_err(err)?;
+    Ok(sid.service_id_string())
+}
+
 #[pymodule]
 fn _libsignal(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SignalStore>()?;
     m.add_function(wrap_pyfunction!(generate_registration_id, m)?)?;
     m.add_function(wrap_pyfunction!(generate_identity_key_pair, m)?)?;
     m.add_function(wrap_pyfunction!(identity_key_pair_from_raw, m)?)?;
+    m.add_function(wrap_pyfunction!(zkgroup_group_secret_params, m)?)?;
+    m.add_function(wrap_pyfunction!(zkgroup_group_public_params, m)?)?;
+    m.add_function(wrap_pyfunction!(zkgroup_group_id, m)?)?;
+    m.add_function(wrap_pyfunction!(zkgroup_receive_auth_credential, m)?)?;
+    m.add_function(wrap_pyfunction!(zkgroup_auth_presentation, m)?)?;
+    m.add_function(wrap_pyfunction!(zkgroup_decrypt_uuid_ciphertext, m)?)?;
     Ok(())
 }

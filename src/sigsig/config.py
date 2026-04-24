@@ -33,6 +33,24 @@ UNIDENTIFIED_SENDER_TRUST_ROOT2 = base64.b64decode(
     "BUkY0I+9+oPgDCn4+Ac6Iu813yvqkDr/ga8DzLxFxuk6"
 )
 
+# Public params of Signal's zkgroup server, used to verify AuthCredentialWithPni
+# responses and build group-auth presentations. From signal-cli LiveConfig.java.
+ZKGROUP_SERVER_PUBLIC_PARAMS = base64.b64decode(
+    "AMhf5ywVwITZMsff/eCyudZx9JDmkkkbV6PInzG4p8x3VqVJSFiMvnvlEKWuRob/1eaIetR3"
+    "1IYeAbm0NdOuHH8Qi+Rexi1wLlpzIo1gstHWBfZzy1+qHRV5A4TqPp15YzBPm0WSggW6PbSn"
+    "+F4lf57VCnHF7p8SvzAA2ZZJPYJURt8X7bbg+H3i+PEjH9DXItNEqs2sNcug37xZQDLm7X36"
+    "nOoGPs54XsEGzPdEV+itQNGUFEjY6X9Uv+Acuks7NpyGvCoKxGwgKgE5XyJ+nNKlyHHOLb6N"
+    "1NuHyBrZrgtY/JYJHRooo5CEqYKBqdFnmbTVGEkCvJKxLnjwKWf+fEPoWeQFj5ObDjcKMZf2"
+    "Jm2Ae69x+ikU5gBXsRmoF94GXTLfN0/vLt98KDPnxwAQL9j5V1jGOY8jQl6MLxEs56cwXN0d"
+    "qCnImzVH3TZT1cJ8SW1BRX6qIVxEzjsSGx3yxF3suAilPMqGRp4ffyopjMD1JXiKR2RwLKzi"
+    "zUe5e8XyGOy9fplzhw3jVzTRyUZTRSZKkMLWcQ/gv0E4aONNqs4P+NameAZYOD12qRkxosQQ"
+    "P5uux6B2nRyZ7sAV54DgFyLiRcq1FvwKw2EPQdk4HDoePrO/RNUbyNddnM/mMgj4FW65xCoT"
+    "1LmjrIjsv/Ggdlx46ueczhMgtBunx1/w8k8V+l8LVZ8gAT6wkU5J+DPQalQguMg12Jzug3q4"
+    "TbdHiGCmD9EunCwOmsLuLJkz6EcSYXtrlDEnAM+hicw7iergYLLlMXpfTdGxJCWJmP4zqUFe"
+    "TTmsmhsjGBt7NiEB/9pFFEB3pSbf4iiUukw63Eo8Aqnf4iwob6X1QviCWuc8t0LUlT9vALgh"
+    "/f2DPVOOmR0RW6bgRvc7DSF20V/omg+YBw=="
+)
+
 # ---------------------------------------------------------------------------
 # Protocol constants
 # ---------------------------------------------------------------------------
@@ -80,12 +98,14 @@ DEFAULT_CAPABILITIES: dict[str, bool] = {
 }
 
 
+# /v2/groups/… lives on storage.signal.org (see PushServiceSocket.java
+# makeStorageRequest usage).
+GROUPS_V2_HOST = STORAGE_SERVICE_URL
+
+
 @dataclass(frozen=True, slots=True)
 class Environment:
-    """Bundle of all endpoints for a given deployment.
-
-    Swap out for a staging ``Environment`` when testing against a dev server.
-    """
+    """Bundle of all endpoints for a given deployment."""
 
     chat_http_url: str = CHAT_SERVICE_URL
     chat_ws_url: str = CHAT_WS_URL

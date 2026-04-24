@@ -12,6 +12,7 @@ from sigsig.errors import SessionError, SigsigError
 from sigsig.events import Event
 from sigsig.handlers import Handler, HandlerRegistry
 from sigsig.groups import Group
+from sigsig.groups_api import fetch_group_members as _fetch_group_members
 from sigsig.provisioning.flow import link_device
 from sigsig.receive import run_receive_loop
 from sigsig.send import SendResult, send_group_text_message, send_text_message
@@ -141,6 +142,29 @@ class Client:
             our_aci=self._store.file.aci,
             our_device_id=self._store.file.device_id,
         )
+
+    # ------------------------------------------------------------------
+    # Groups V2
+    # ------------------------------------------------------------------
+
+    async def fetch_group_members(self, master_key: bytes) -> Group:
+        """Return a :class:`Group` with its members populated from the server.
+
+        Requires that the current account is actually a member of the group
+        (the server rejects auth-credential presentations otherwise).
+        """
+        import time
+
+        self._ensure_session()
+        assert self._http is not None and self._store is not None
+        members = await _fetch_group_members(
+            master_key=master_key,
+            aci=self._store.file.aci,
+            pni=self._store.file.pni,
+            chat_http=self._http,
+            today_seconds=int(time.time()),
+        )
+        return Group(master_key=master_key, members=tuple(members))
 
     # ------------------------------------------------------------------
     # Receive loop
