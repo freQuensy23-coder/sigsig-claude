@@ -116,8 +116,9 @@ class Client:
         self,
         recipient: ServiceId | Group | str,
         *,
-        text: str,
+        text: str = "",
         expires_in_seconds: int = 0,
+        attachments: list[Attachment] | None = None,
     ) -> SendResult:
         self._ensure_session()
         assert self._http is not None and self._store is not None
@@ -131,6 +132,7 @@ class Client:
                 expire_timer_s=expires_in_seconds,
                 our_aci=self._store.file.aci,
                 our_device_id=self._store.file.device_id,
+                attachments=attachments,
             )
         recipient_id = self._coerce_recipient(recipient)
         return await send_text_message(
@@ -141,6 +143,7 @@ class Client:
             expire_timer_s=expires_in_seconds,
             our_aci=self._store.file.aci,
             our_device_id=self._store.file.device_id,
+            attachments=attachments,
         )
 
     # ------------------------------------------------------------------
