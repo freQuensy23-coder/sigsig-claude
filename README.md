@@ -104,8 +104,9 @@ sigsig fans the same encrypted `DataMessage` (with `groupV2 = {masterKey, revisi
 
 ## Attachments (images, files)
 
+Send from disk:
+
 ```python
-from pathlib import Path
 from sigsig import Attachment
 
 await client.send_message(
@@ -113,16 +114,39 @@ await client.send_message(
     text="here's the photo",
     attachments=[Attachment.from_file("~/Pictures/cat.jpg")],
 )
+```
 
-# On receive:
+Or from in-memory bytes:
+
+```python
+import io
+from PIL import Image
+
+buf = io.BytesIO()
+Image.new("RGB", (256, 256), (220, 50, 50)).save(buf, format="PNG")
+
+await client.send_message(
+    recipient,
+    text="red square",
+    attachments=[
+        Attachment.from_bytes(buf.getvalue(), content_type="image/png", file_name="red.png"),
+    ],
+)
+```
+
+Receive side — `msg.attachments` is a tuple of `InboundAttachment`; each one lazily downloads and decrypts when you `await` it:
+
+```python
+from pathlib import Path
+
 @client.on(events.TextMessage)
 async def on_text(msg):
     for att in msg.attachments:
-        data = await att.download()   # downloads from CDN, verifies, decrypts
+        data = await att.download()   # CDN fetch + digest + HMAC + AES-CBC
         (Path("./inbox") / (att.file_name or "attachment")).write_bytes(data)
 ```
 
-Attachments are AES-256-CBC + HMAC-SHA256 encrypted client-side, uploaded to Signal's CDN3 (TUS resumable-upload), and referenced from the `DataMessage` via an `AttachmentPointer`. Recipients fetch the encrypted blob, verify the SHA-256 digest + HMAC, then decrypt.
+Protocol: AES-256-CBC + HMAC-SHA256 encryption client-side with a random 64-byte key (32 AES + 32 HMAC), uploaded to Signal's CDN3 over the TUS "creation-with-upload" flow, referenced from the `DataMessage` via an `AttachmentPointer`. Recipients fetch the encrypted blob, verify SHA-256 digest + HMAC, then decrypt. The 64-byte key + digest both ride inside the sealed-sender envelope, so only the intended recipient(s) can decrypt.
 
 ### Where does `master_key` come from?
 
