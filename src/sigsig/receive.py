@@ -24,6 +24,7 @@ from sigsig.config import UNIDENTIFIED_SENDER_TRUST_ROOT, UNIDENTIFIED_SENDER_TR
 from sigsig.events import (
     DecryptionError,
     Event,
+    GroupTextMessage,
     Receipt,
     SelfSent,
     TextMessage,
@@ -237,17 +238,31 @@ def _events_from_content(
 
     if content.HasField("dataMessage"):
         dm = content.dataMessage
-        events.append(
-            TextMessage(
-                sender=source,
-                sender_device=source_device,
-                timestamp_ms=dm.timestamp,
-                server_timestamp_ms=envelope.serverTimestamp,
-                text=dm.body or "",
-                expires_in_seconds=dm.expireTimer or 0,
-                is_view_once=bool(dm.isViewOnce),
+        if dm.HasField("groupV2"):
+            events.append(
+                GroupTextMessage(
+                    sender=source,
+                    sender_device=source_device,
+                    group_master_key=bytes(dm.groupV2.masterKey),
+                    group_revision=dm.groupV2.revision,
+                    timestamp_ms=dm.timestamp,
+                    server_timestamp_ms=envelope.serverTimestamp,
+                    text=dm.body or "",
+                    expires_in_seconds=dm.expireTimer or 0,
+                )
             )
-        )
+        else:
+            events.append(
+                TextMessage(
+                    sender=source,
+                    sender_device=source_device,
+                    timestamp_ms=dm.timestamp,
+                    server_timestamp_ms=envelope.serverTimestamp,
+                    text=dm.body or "",
+                    expires_in_seconds=dm.expireTimer or 0,
+                    is_view_once=bool(dm.isViewOnce),
+                )
+            )
     if content.HasField("receiptMessage"):
         rm = content.receiptMessage
         kind_map = {

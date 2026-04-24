@@ -11,9 +11,10 @@ from sigsig.config import LIVE, Environment
 from sigsig.errors import SessionError, SigsigError
 from sigsig.events import Event
 from sigsig.handlers import Handler, HandlerRegistry
+from sigsig.groups import Group
 from sigsig.provisioning.flow import link_device
 from sigsig.receive import run_receive_loop
-from sigsig.send import SendResult, send_text_message
+from sigsig.send import SendResult, send_group_text_message, send_text_message
 from sigsig.session.store import (
     SigsigStore,
     load_session_file,
@@ -112,7 +113,7 @@ class Client:
 
     async def send_message(
         self,
-        recipient: ServiceId | str,
+        recipient: ServiceId | Group | str,
         *,
         text: str,
         expires_in_seconds: int = 0,
@@ -120,6 +121,16 @@ class Client:
         self._ensure_session()
         assert self._http is not None and self._store is not None
 
+        if isinstance(recipient, Group):
+            return await send_group_text_message(
+                http=self._http,
+                store=self._store.aci_store,
+                group=recipient,
+                text=text,
+                expire_timer_s=expires_in_seconds,
+                our_aci=self._store.file.aci,
+                our_device_id=self._store.file.device_id,
+            )
         recipient_id = self._coerce_recipient(recipient)
         return await send_text_message(
             http=self._http,

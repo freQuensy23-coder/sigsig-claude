@@ -2,6 +2,7 @@
 
 from sigsig import events
 from sigsig.client import Client
+from sigsig.groups import Group
 from sigsig.errors import (
     AuthenticationFailed,
     MismatchedDevices,
@@ -19,6 +20,7 @@ __all__ = [
     "AuthenticationFailed",
     "Client",
     "DeviceId",
+    "Group",
     "MismatchedDevices",
     "PreKeyId",
     "ProtocolError",

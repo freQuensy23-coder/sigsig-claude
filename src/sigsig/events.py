@@ -31,6 +31,25 @@ class TextMessage(Event):
 
 
 @dataclass(slots=True, frozen=True)
+class GroupTextMessage(Event):
+    """A text message delivered in a Groups V2 chat.
+
+    ``group_master_key`` is the raw 32-byte master key from the inbound
+    ``DataMessage.groupV2``. Handlers can use it to match against known
+    groups.
+    """
+
+    sender: ServiceId
+    sender_device: DeviceId
+    group_master_key: bytes
+    group_revision: int
+    timestamp_ms: int
+    server_timestamp_ms: int
+    text: str
+    expires_in_seconds: int = 0
+
+
+@dataclass(slots=True, frozen=True)
 class Receipt(Event):
     """A delivery or read receipt from a peer."""
 
