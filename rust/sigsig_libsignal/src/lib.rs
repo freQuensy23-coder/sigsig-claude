@@ -19,19 +19,19 @@ use async_trait::async_trait;
 use futures::executor::block_on;
 use libsignal_core::{DeviceId, ProtocolAddress};
 use libsignal_protocol::{
-    CiphertextMessage, CiphertextMessageType, Direction, GenericSignedPreKey, IdentityChange,
-    IdentityKey, IdentityKeyPair, IdentityKeyStore, KeyPair, KyberPreKeyId, KyberPreKeyRecord,
-    KyberPreKeyStore, PreKeyBundle, PreKeyBundleContent, PreKeyId, PreKeyRecord, PreKeySignalMessage,
-    PreKeyStore, PrivateKey, PublicKey, SenderKeyRecord, SenderKeyStore, SessionRecord, SessionStore,
-    SignalMessage, SignalProtocolError, SignedPreKeyId, SignedPreKeyRecord, SignedPreKeyStore,
-    Timestamp, kem, message_decrypt_prekey, message_decrypt_signal, message_encrypt,
-    process_prekey_bundle, sealed_sender_decrypt,
+    kem, message_decrypt_prekey, message_decrypt_signal, message_encrypt, process_prekey_bundle,
+    sealed_sender_decrypt, CiphertextMessage, CiphertextMessageType, Direction,
+    GenericSignedPreKey, IdentityChange, IdentityKey, IdentityKeyPair, IdentityKeyStore, KeyPair,
+    KyberPreKeyId, KyberPreKeyRecord, KyberPreKeyStore, PreKeyBundle, PreKeyBundleContent,
+    PreKeyId, PreKeyRecord, PreKeySignalMessage, PreKeyStore, PrivateKey, PublicKey,
+    SenderKeyRecord, SenderKeyStore, SessionRecord, SessionStore, SignalMessage,
+    SignalProtocolError, SignedPreKeyId, SignedPreKeyRecord, SignedPreKeyStore, Timestamp,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use rand::TryRngCore;
 use rand::rngs::OsRng;
+use rand::TryRngCore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -109,7 +109,12 @@ impl Store {
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
-            pre_keys: self.pre_keys.0.iter().map(|(k, v)| (*k, v.clone())).collect(),
+            pre_keys: self
+                .pre_keys
+                .0
+                .iter()
+                .map(|(k, v)| (*k, v.clone()))
+                .collect(),
             signed_pre_keys: self
                 .signed_pre_keys
                 .0
@@ -359,7 +364,10 @@ fn addr(service_id: &str, device_id: u32) -> PyResult<ProtocolAddress> {
 
 fn local_address() -> ProtocolAddress {
     // libsignal uses this only in log lines.
-    ProtocolAddress::new("sigsig".into(), DeviceId::try_from(1u32).expect("1 is valid"))
+    ProtocolAddress::new(
+        "sigsig".into(),
+        DeviceId::try_from(1u32).expect("1 is valid"),
+    )
 }
 
 fn now_ms() -> u64 {
@@ -428,7 +436,10 @@ impl SignalStore {
 
     fn identity_public<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let store = self.inner.lock().map_err(|e| err(e.to_string()))?;
-        Ok(PyBytes::new_bound(py, &store.identity.identity.public_key().serialize()))
+        Ok(PyBytes::new_bound(
+            py,
+            &store.identity.identity.public_key().serialize(),
+        ))
     }
 
     // --- prekey generation ------------------------------------------------
@@ -442,7 +453,10 @@ impl SignalStore {
         let mut rng = OsRng.unwrap_err();
         let keypair = KeyPair::generate(&mut rng);
         let record = PreKeyRecord::new(id.into(), &keypair);
-        store.pre_keys.0.insert(id, record.serialize().map_err(err)?);
+        store
+            .pre_keys
+            .0
+            .insert(id, record.serialize().map_err(err)?);
         Ok((id, PyBytes::new_bound(py, &keypair.public_key.serialize())))
     }
 
@@ -452,7 +466,9 @@ impl SignalStore {
         start_id: u32,
         count: u32,
     ) -> PyResult<Vec<(u32, Bound<'py, PyBytes>)>> {
-        (0..count).map(|i| self.generate_pre_key(py, start_id + i)).collect()
+        (0..count)
+            .map(|i| self.generate_pre_key(py, start_id + i))
+            .collect()
     }
 
     fn generate_signed_pre_key<'py>(
@@ -592,9 +608,9 @@ impl SignalStore {
         let inner = Arc::clone(&self.inner);
         let (type_byte, ciphertext) = py
             .allow_threads(|| -> Result<(u8, Vec<u8>), SignalProtocolError> {
-                let mut guard = inner.lock().map_err(|_| {
-                    SignalProtocolError::InvalidState("encrypt", "poisoned".into())
-                })?;
+                let mut guard = inner
+                    .lock()
+                    .map_err(|_| SignalProtocolError::InvalidState("encrypt", "poisoned".into()))?;
                 let store: &mut Store = &mut *guard;
                 let mut rng = OsRng.unwrap_err();
                 let msg = block_on(message_encrypt(
@@ -611,10 +627,9 @@ impl SignalStore {
                         CiphertextMessageType::Whisper as u8,
                         m.serialized().to_vec(),
                     ),
-                    CiphertextMessage::PreKeySignalMessage(m) => (
-                        CiphertextMessageType::PreKey as u8,
-                        m.serialized().to_vec(),
-                    ),
+                    CiphertextMessage::PreKeySignalMessage(m) => {
+                        (CiphertextMessageType::PreKey as u8, m.serialized().to_vec())
+                    }
                     other => {
                         return Err(SignalProtocolError::InvalidState(
                             "encrypt",
