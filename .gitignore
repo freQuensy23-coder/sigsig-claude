@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg
+.env
+.DS_Store
+
+# generated protobuf stubs
+src/sigsig/_proto/*_pb2.py
+src/sigsig/_proto/*_pb2_grpc.py
+
+# cargo build artifacts + native extension output from maturin
+rust/**/target/
+rust/sigsig_libsignal/python/sigsig_libsignal/_libsignal.*.so
+rust/sigsig_libsignal/python/sigsig_libsignal/_libsignal.*.pyd

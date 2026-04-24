@@ -1,0 +1,25 @@
+// Wire protobuf for the Signal Protocol (Double Ratchet).
+// Vendored from libsignal/rust/protocol/src/proto/wire.proto
+
+syntax = "proto2";
+
+package sigsig.proto.wire;
+
+message SignalMessage {
+  optional bytes ratchet_key = 1;
+  optional uint32 counter = 2;
+  optional uint32 previous_counter = 3;
+  optional bytes ciphertext = 4;
+  optional bytes pq_ratchet = 5;
+}
+
+message PreKeySignalMessage {
+  optional uint32 registration_id = 5;
+  optional uint32 pre_key_id = 1;
+  optional uint32 signed_pre_key_id = 6;
+  optional uint32 kyber_pre_key_id = 7;
+  optional bytes kyber_ciphertext = 8;
+  optional bytes base_key = 2;
+  optional bytes identity_key = 3;
+  optional bytes message = 4;
+}

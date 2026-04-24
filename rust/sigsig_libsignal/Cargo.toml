@@ -1,0 +1,19 @@
+[package]
+name = "sigsig_libsignal"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "_libsignal"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+libsignal-protocol = { git = "https://github.com/signalapp/libsignal.git", tag = "v0.92.1" }
+libsignal-core = { git = "https://github.com/signalapp/libsignal.git", tag = "v0.92.1" }
+async-trait = "0.1"
+rand = "0.9"
+futures = "0.3"
+bincode = "1.3"
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["v4", "serde"] }
